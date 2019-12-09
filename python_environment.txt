@@ -1,0 +1,69 @@
+
+     active environment : uni
+    active env location : /home/brendan/anaconda3/envs/uni
+            shell level : 2
+       user config file : /home/brendan/.condarc
+ populated config files : 
+          conda version : 4.7.12
+    conda-build version : 3.17.6
+         python version : 3.7.3.final.0
+       virtual packages : 
+       base environment : /home/brendan/anaconda3  (writable)
+           channel URLs : https://repo.anaconda.com/pkgs/main/linux-64
+                          https://repo.anaconda.com/pkgs/main/noarch
+                          https://repo.anaconda.com/pkgs/r/linux-64
+                          https://repo.anaconda.com/pkgs/r/noarch
+          package cache : /home/brendan/anaconda3/pkgs
+                          /home/brendan/.conda/pkgs
+       envs directories : /home/brendan/anaconda3/envs
+                          /home/brendan/.conda/envs
+               platform : linux-64
+             user-agent : conda/4.7.12 requests/2.22.0 CPython/3.7.3 Linux/5.0.0-32-generic linuxmint/19 glibc/2.27
+                UID:GID : 1000:1000
+             netrc file : None
+           offline mode : False
+
+Package          Version            
+---------------- -------------------
+backcall         0.1.0              
+certifi          2019.9.11          
+Click            7.0                
+cycler           0.10.0             
+decorator        4.4.1              
+et-xmlfile       1.0.1              
+ipython          7.9.0              
+ipython-genutils 0.2.0              
+jdcal            1.4.1              
+jedi             0.15.1             
+joblib           0.14.0             
+kiwisolver       1.1.0              
+matplotlib       3.1.1              
+mpmath           1.1.0              
+nltk             3.4.5              
+numpy            1.17.3             
+openpyxl         3.0.1              
+pandas           0.25.3             
+parso            0.5.1              
+pexpect          4.7.0              
+pickleshare      0.7.5              
+pip              19.3.1             
+prompt-toolkit   2.0.10             
+ptyprocess       0.6.0              
+Pygments         2.4.2              
+pyparsing        2.4.4              
+python-dateutil  2.8.1              
+pytz             2019.3             
+scikit-learn     0.21.3             
+scipy            1.3.2              
+seaborn          0.9.0              
+setuptools       41.6.0.post20191030
+six              1.13.0             
+sklearn          0.0                
+stemming         1.0.1              
+sympy            1.4                
+textmining3      1.1.0              
+traitlets        4.3.3              
+wcwidth          0.1.7              
+wheel            0.33.6             
+xlrd             1.2.0              
+xlwt             1.3.0              
