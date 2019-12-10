@@ -141,3 +141,21 @@ def getTopicList(documents: typing.List[str]):
 
 vecLevRatio = np.vectorize(lev_ratio)
 vecTfidfCosDist = np.vectorize(tfidf_cosine_distance)
+
+def isVisible(elem):
+    nonContent = ['style', 'script', 'head', 'meta', 'title', '[document]']
+    if elem.parent.name in nonContent: return False
+    if isinstance(elem, Comment): return False
+    return True
+
+gsoup = BeautifulSoup(gpupages[0].text, 'html.parser')
+gtext = gsoup.findAll(text=true)
+gvisible = filter(isVisible, gtext)
+gpagetext = u' '.join(t.strip() for t in gvisible)
+print(gpagetext)
+
+for gpage in gpupages:
+    gsoup = BeautifulSoup(gpage.text, 'html.parser')
+    gtext = gsoup.findAll(text=true)
+    gvisible = filter(isVisible, gtext)
+    gpagetext = u' '.join(t.strip() for t in gvisible)
