@@ -5,7 +5,7 @@ from mord.regression_based import OrdinalRidge
 from nltk import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
-import seaborn as sns
+from nltk.util import ngrams
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
@@ -14,10 +14,14 @@ from sklearn.linear_model import LinearRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
+import collections
+import nltk
 import numpy as np
 import pandas as pd
 import pickle, os, sys
+import re
 import requests
+import seaborn as sns
 import string
 import textmining
 import typing
@@ -181,3 +185,65 @@ def buildQDAClassifier(qasData):
         ('qda', qda),
         ])
     return pipe
+
+sgd = buildSGDClassifier(gpuframe)
+mnb = buildMNBClassifier(gpuframe)
+ordrid = buildOrdinalRegressor(gpuframe)
+
+sgdl1, sl1scr = makeClassifier(sgd, gpuframe.pagetext, list(gpuframe.index))
+mnbl1, ml1scr = makeClassifier(mnb, gpuframe.pagetext, list(gpuframe.index))
+or1, orscore = makeClassifier(ordrid, gpuframe.pagetext, gpuframe.index.values)
+
+sgdl1preds = sgdl1.predict(gpuframe.pagetext)
+mnbl1preds = mnbl1.predict(gpuframe.pagetext)
+or1preds = or1.predict(gpuframe.pagetext)
+
+# plot scatter with trendline
+xaxis = list(range(len(or1preds)))
+sns.regplot(xaxis, or1preds)
+plt.savefig('textRegression.png', bbox_inches='tight')
+plt.show()
+
+# word cloud for the best selling GPU
+# Create the wordcloud object
+wordcloud = WordCloud(width=480, height=480, margin=0).generate(gpuframe.pagetext[0])
+# Display the generated image:
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis("off")
+plt.margins(x=0, y=0)
+plt.savefig('bestSellingWords.png', bbox_inches='tight')
+plt.show()
+
+# wordcloud for the worst selling GPU
+# Create the wordcloud object
+wordcloud = WordCloud(width=480, height=480, margin=0).generate(gpuframe.pagetext[95])
+# Display the generated image:
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis("off")
+plt.margins(x=0, y=0)
+plt.savefig('worstSellingWords.png', bbox_inches='tight')
+plt.show()
+
+# ngram frequencies for best and then worst
+# best
+tokenised = gpuframe.pagetext[0].split()
+bestSellingBiGrams = ngrams(tokenised, 2)
+bestSellingFreq = collections.Counter(bestSellingBiGrams)
+top10 = bestSellingFreq.most_common(10)
+xBest = [' '.join(txt) for txt in [gram for gram, freq in top10]]
+yBest = [freq for gram, freq in top10]
+plt.barh(xBest, yBest)
+plt.savefig('bestNGrams.png')
+plt.show()
+
+
+# worst
+tokenised = gpuframe.pagetext[95].split()
+worstSellingBiGrams = ngrams(tokenised, 2)
+worstSellingFreq = collections.Counter(worstSellingBiGrams)
+bottom10 = worstSellingFreq.most_common(10)
+xWorst = [' '.join(txt) for txt in [gram for gram, freq in bottom10]]
+yWorst = [freq for gram, freq in top10]
+plt.barh(xWorst, yWorst)
+plt.savefig('worstNGrams.png')
+plt.show()
