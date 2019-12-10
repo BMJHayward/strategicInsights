@@ -1,39 +1,118 @@
+from bs4 import BeautifulSoup
+from bs4.element import Comment
 from matplotlib import pyplot as plt
+from mord.regression_based import OrdinalRidge
 from nltk import word_tokenize
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
+import seaborn as sns
 from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis as LDA
 from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis as QDA
 from sklearn.feature_extraction.text import TfidfVectorizer, CountVectorizer
-from sklearn.linear_model import SGDClassifier
+from sklearn.linear_model import LinearRegression, SGDClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
 import numpy as np
 import pandas as pd
+import pickle, os, sys
+import requests
 import string
 import textmining
 import typing
 
+# saves me from using capital letters
+true = True
+false = False
+
+url = 'https://www.newegg.com/global/au-en/Desktop-Graphics-Cards-Desktop-Graphics-Cards/SubCategory/ID-48?Tid=203018&Order=BESTSELLING&PageSize=96'
+html = requests.get(url)
+soup = BeautifulSoup(html.text, 'html.parser')
+links = soup.find_all('a', attrs={'class': 'item-title'})
+oldprices = soup.find_all('li', attrs={'class': 'price-was'})
+currentprices = soup.find_all('li', attrs={'class': 'price-current'})
+savings = soup.find_all('li', attrs={'class': 'price-save'})
+titles = []
+href_list = []
+old_prices = []
+prices = []
+prices_strong = []
+prices_sup = []
+discounts = []
+
+for link in links:
+    titles.append(link.text)
+    href_list.append(link['href'])
+for price in list(oldprices):
+    prtext = price.find('span', attrs={'class': 'price-currency-label'})
+    val = prtext.text if prtext is not None else 'None'
+    val = price.text.split('\r')[-1].strip() if price is not None else 'None'
+    old_prices.append(val)
+for price in currentprices:
+    if (price.strong is None or price.sup is None):
+        continue
+    print(price.strong)
+    print(price.sup)
+    pr = f'{price.strong.text}{price.sup.text}'
+    prices.append(pr)
+for discount in savings:
+    disc = discount.find('span', attrs={'class': 'price-save-percent'})
+    val = disc.text if disc is not None else 'None'
+    discounts.append(val)
+
+gpuframe = pd.DataFrame(data=[titles, href_list, old_prices, prices, discounts])
+gpuframe = gpuframe.transpose()
+gpuframe.columns = ['title', 'link', 'oldprice', 'newprice', 'discount']
+
+def isVisible(elem):
+    nonContent = ['style', 'script', 'head', 'meta', 'title', '[document]']
+    if elem.parent.name in nonContent: return False
+    if isinstance(elem, Comment): return False
+    return True
+
+def pageText(responseObj):
+    '''
+    pass in a requests.Response object
+    returns the all the visible text from that page
+    '''
+    gsoup = BeautifulSoup(responseObj.text, 'html.parser')
+    gtext = gsoup.findAll(text=true)
+    gvisible = filter(isVisible, gtext)
+    return u' '.join(t.strip() for t in gvisible)
 
 
-def initData(train, valid):
-    colNames = ['unit','name','desc','l1code','l1desc','l2code','l2desc','l3code','l3desc']
-    train = pd.read_excel(train)
-    valid = pd.read_excel(valid)
-    # turn NA/NaN/None into ''
-    train = train.fillna('NA')
-    valid = valid.fillna('NA')
-    train.columns = colNames
-    valid.columns = colNames
-    trainMat = textmining.TermDocumentMatrix()
-    for des in train.desc:
-        trainMat.add_doc(str(des))
-    validMat = textmining.TermDocumentMatrix()
-    for des in valid.desc:
-        validMat.add_doc(str(des))
-    return trainMat, validMat, train, valid
+print('GPU DATA SUMMARY:')
+print(gpuframe.describe().transpose())
+
+ziplist = zip(titles[:10], href_list[:10], prices[:10])
+print(f'\nBest selling GPUs: \n----------------------------------------------------------------')
+for num, gpu in enumerate(ziplist):
+    num += 1
+    title, url, price = gpu
+    print(f'{num}. {title}\n${price}\n{url}\n----------------------------------------------------------------')
+
+#### Assessment 4 specific code
+gpupages = [requests.get(url) for url in href_list]
+gpupages = list(map(pageText, gpupages))
+gpuframe['pagetext'] = gpupages
+gpuframe.to_csv('best_selling_gpu.csv', encoding='utf-8')
+# parse components in each page, correlate with popularity
+# i.e. try to identify what makes it best selling
+
+'''
+with open('gpuframe.pickle', 'wb') as framefile:
+    pickle.dump(gpuframe, framefile, pickle.HIGHEST_PROTOCOL)
+
+with open('gpupages.pickle', 'wb') as pagesfile:
+    pickle.dump(gpupages, pagesfile, pickle.HIGHEST_PROTOCOL)
+
+with open('gpuframe.pickle', 'rb') as gframe:
+    gpuframe = pickle.load(gframe)
+
+with open('gpupages.pickle', 'rb') as gpages:
+    gpupages = pickle.load(gpages)
+'''
 
 def stemming_tokenizer(text):
     stemmer = PorterStemmer()
@@ -60,24 +139,38 @@ def buildSGDClassifier(qasData):
     ])
     return pipe
 
+def buildLinearRegressor(qasData):
+    pipe = Pipeline([
+        ('vectorizer', TfidfVectorizer(tokenizer=stemming_tokenizer,
+            stop_words=stopwords.words('english') + list(string.punctuation))),
+        ('regressor', LinearRegression()),
+    ])
+    return pipe
+
+def buildOrdinalRegressor(qasData):
+    pipe = Pipeline([
+        ('vectorizer', TfidfVectorizer(tokenizer=stemming_tokenizer,
+            stop_words=stopwords.words('english') + list(string.punctuation))),
+        ('regressor', OrdinalRidge()),
+    ])
+    return pipe
+
 def makeClassifier(classifier, X, y):
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.25, random_state=9)
-    classifier.fit(X_train, y_train)
-    score = classifier.score(X_test, y_test)
+    Xtrain, Xtest, ytrain, ytest = train_test_split(X, y, test_size=0.2, random_state=999)
+    classifier.fit(Xtrain, ytrain)
+    score = classifier.score(Xtest, ytest)
     print(f'Accuracy: {score}')
     return classifier, score
 
-def makeTable(dataDict, fName):
-    fig, ax = plt.subplots()
-    ax.xaxis.set_visible(False)
-    ax.yaxis.set_visible(False)
-    ax.table(cellText=[list(dataDict.values())],
-        colLabels=list(dataDict.keys()))
-    plt.show()
-    # plt.savefig(fName)
 
-
+# code below kept for interest, unused because of poor results or unsuitable to task
 def buildQDAClassifier(qasData):
+    '''
+    tfidf = TfidfVectorizer()
+    tffit = tfidf.fit_transform(qasData)
+    qda = QDA()
+    qda.fit(tffit.toarray())
+    '''
     qda = QDA()
     pipe = Pipeline([
         # tfidf creates a sparse matrix which qda can't use
@@ -88,74 +181,3 @@ def buildQDAClassifier(qasData):
         ('qda', qda),
         ])
     return pipe
-
-def lev_distance(str1, str2):
-    # calculates levenshtein similarity between 2 strings
-    xlen, ylen = len(str1) + 1, len(str2) + 1
-    distmatrix = np.zeros((xlen, ylen))
-    for x in range(xlen): distmatrix[x,0] = x
-    for y in range(ylen): distmatrix[0,y] = y
-    for x in range(1, xlen):
-        for y in range(1, ylen):
-            if str1[x-1] == str2[y-1]:
-                distmatrix[x,y] = min(
-                    distmatrix[x-1,y] + 1,
-                    distmatrix[x-1,y-1],
-                    distmatrix[x,y-1] + 1)
-            else:
-                distmatrix[x,y] = min(
-                    distmatrix[x-1,y] + 1,
-                    distmatrix[x-1,y-1] + 1,
-                    distmatrix[x,y-1] + 1)
-    return distmatrix[xlen-1, ylen-1]
-
-def lev_ratio(str1, str2):
-    # calculates levenshtein distance as a ratio of the maximum edit distance
-    upper_bound = max(len(str1), len(str2))
-    return 1 - lev_distance(str1, str2) / upper_bound
-
-def tfidf_cosine_distance(str1, str2):
-    # returns a float, a higher number is closer/better result
-    vectors = TfidfVectorizer(min_df=1)
-    tfidf = vectors.fit_transform([str1, str2])
-    return (tfidf*tfidf.T).A[0,1]
-
-def getTopicList(documents: typing.List[str]):
-    # perform LDA
-    def display_topics(model, feature_names, no_top_words):
-        return {
-            "Topic {}:".format(topic_idx):" ".join([feature_names[i]
-                for i in topic.argsort()[:-no_top_words - 1:-1]])
-                    for topic_idx, topic in enumerate(model.components_)
-            }
-    no_features = 1000
-    # LDA can only use raw term counts because it is a probabilistic graphical model
-    tf_vectorizer = CountVectorizer(min_df=0, max_features=no_features, stop_words='english')
-    tf = tf_vectorizer.fit_transform(documents)
-    tf_feature_names = tf_vectorizer.get_feature_names()
-    no_topics = 10
-    # Run LDA
-    lda = LatentDirichletAllocation(n_components=no_topics, max_iter=5, learning_method='online', learning_offset=50.,random_state=0).fit(tf)
-    no_top_words = 10
-    return display_topics(lda, tf_feature_names, no_top_words)
-
-vecLevRatio = np.vectorize(lev_ratio)
-vecTfidfCosDist = np.vectorize(tfidf_cosine_distance)
-
-def isVisible(elem):
-    nonContent = ['style', 'script', 'head', 'meta', 'title', '[document]']
-    if elem.parent.name in nonContent: return False
-    if isinstance(elem, Comment): return False
-    return True
-
-gsoup = BeautifulSoup(gpupages[0].text, 'html.parser')
-gtext = gsoup.findAll(text=true)
-gvisible = filter(isVisible, gtext)
-gpagetext = u' '.join(t.strip() for t in gvisible)
-print(gpagetext)
-
-for gpage in gpupages:
-    gsoup = BeautifulSoup(gpage.text, 'html.parser')
-    gtext = gsoup.findAll(text=true)
-    gvisible = filter(isVisible, gtext)
-    gpagetext = u' '.join(t.strip() for t in gvisible)
